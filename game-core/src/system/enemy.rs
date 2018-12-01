@@ -1,6 +1,5 @@
-use amethyst::core::cgmath::InnerSpace;
-use amethyst::core::cgmath::Vector2;
 use amethyst::{
+    core::cgmath::{InnerSpace, Vector2},
     core::Transform,
     ecs::{Entities, Join, Read, ReadStorage, System, WriteStorage},
     renderer::{SpriteRender, Transparent},
@@ -19,24 +18,26 @@ impl<'s> System<'s> for Movement {
         Option<Read<'s, crate::map::PassableTiles>>,
     );
 
-    fn run(&mut self, (players, enemies, mut motions, mut transforms, passable): Self::SystemData) {
+    fn run(&mut self, (players, enemies, mut motions, transforms, passable): Self::SystemData) {
         if let Some(passable) = passable {
             let mut player_translation = Vector2 { x: 0.0, y: 0.0 };
             let mut detection_circle = Vector2 { x: 64.0, y: 64.0};
 
             // get player position
-            for (_, transform) in (&players, &mut transforms).join() {
+            for (_, transform) in (&players, &transforms).join() {
                 player_translation = transform.translation.truncate();
             }
 
-            for (_, transform) in (&enemies, &mut transforms).join() {
+            for (_, motion, transform) in (&enemies, &mut motions, &transforms).join() {
                 let enemy_translation = transform.translation.truncate();
                 let player_direction = player_translation - enemy_translation;
 
                 if player_direction.magnitude2() <= detection_circle.magnitude2() {
                     // let enemy_shift = player_direction - player_direction.normalize();
                     let enemy_shift = player_direction.normalize();
-                    transform.translation += enemy_shift.extend(0.0);
+                    println!("player nearby");
+                    motion.vel = enemy_shift;
+                    // transform.translation += enemy_shift.extend(0.0);
                 }
             }
         }
@@ -51,6 +52,7 @@ impl<'s> System<'s> for Spawner {
         Read<'s, crate::load::LoadedTextures>,
         WriteStorage<'s, Transform>,
         WriteStorage<'s, Enemy>,
+        WriteStorage<'s, Motion>,
         WriteStorage<'s, SpriteRender>,
         WriteStorage<'s, Transparent>,
         Entities<'s>,
@@ -65,6 +67,7 @@ impl<'s> System<'s> for Spawner {
             textures,
             mut transforms,
             mut enemies,
+            mut motions,
             mut sprites,
             mut transparent,
             entities,
@@ -117,6 +120,7 @@ impl<'s> System<'s> for Spawner {
                         .build_entity()
                         .with(pos, &mut transforms)
                         .with(Enemy::default(), &mut enemies)
+                        .with(Motion::default(), &mut motions)
                         .with(sprite, &mut sprites)
                         .with(Transparent, &mut transparent)
                         .with(anim, &mut animation)

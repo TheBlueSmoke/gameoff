@@ -12,13 +12,13 @@ pub struct Movement;
 impl<'s> System<'s> for Movement {
     type SystemData = (
         ReadStorage<'s, Player>,
-        ReadStorage<'s, Enemy>,
+        WriteStorage<'s, Enemy>,
         WriteStorage<'s, Motion>,
         WriteStorage<'s, Transform>,
         Option<Read<'s, crate::map::PassableTiles>>,
     );
 
-    fn run(&mut self, (players, enemies, mut motions, transforms, passable): Self::SystemData) {
+    fn run(&mut self, (players, mut enemies, mut motions, transforms, passable): Self::SystemData) {
         if let Some(passable) = passable {
             let mut player_translation = Vector2 { x: 0.0, y: 0.0 };
             let mut detection_circle = Vector2 { x: 64.0, y: 64.0 };
@@ -28,7 +28,7 @@ impl<'s> System<'s> for Movement {
                 player_translation = transform.translation.truncate();
             }
 
-            for (_, motion, transform) in (&enemies, &mut motions, &transforms).join() {
+            for (enemy, motion, transform) in (&mut enemies, &mut motions, &transforms).join() {
                 let enemy_translation = transform.translation.truncate();
                 let player_direction = player_translation - enemy_translation;
 
@@ -36,9 +36,13 @@ impl<'s> System<'s> for Movement {
                     // let enemy_shift = player_direction - player_direction.normalize();
                     let enemy_shift = player_direction.normalize_to(100.0);
                     motion.vel = enemy_shift;
-                // transform.translation += enemy_shift.extend(0.0);
+                    enemy.has_player_in_sight = true;
                 } else {
-                    motion.vel = Vector2 { x: 0.0, y: 0.0 };
+                    let range = Uniform::new_inclusive(-1.0, 1.0);
+                    let mut rng = rand::thread_rng();
+                    let perp = Vector2 { x: range.sample(&mut rng), y: range.sample(&mut rng)};
+                    motion.vel = perp.normalize_to(50.0);
+                    enemy.has_player_in_sight = false;
                 }
             }
         }
@@ -79,9 +83,9 @@ impl<'s> System<'s> for Attack {
         let mut bubble_transform = None;
         let mut bubble_dir = None;
         for (_player, _p_transform) in (&players, &transforms).join() {
-            for (_enemy, e_transform, e_motion) in (&mut enemies, &transforms, &motions).join() {
+            for (enemy, e_transform, e_motion) in (&mut enemies, &transforms, &motions).join() {
                 // if they're moving they shoot
-                if e_motion.vel.magnitude2() > 0.0 {
+                if enemy.has_player_in_sight {
                     bubble_transform = Some(e_transform.clone());
 
                     let range = Uniform::new_inclusive(-5.0 * 32.0, 5.0 * 32.0);

@@ -46,6 +46,7 @@ impl SimpleState<'static, 'static> for Menu {
             .with(ally::Grouper, "ally-grouper", &[])
             .with(ally::Spawner, "ally-spawner", &[])
             .with(player::Attack, "player-attack", &[])
+            .with(enemy::Attack, "enemy-attack", &[])
             .with(animation::Frame, "frame-animation", &[])
             .with(motion::Movement, "projectile-movement", &[])
             .build();

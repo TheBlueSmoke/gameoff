@@ -4,7 +4,7 @@ use amethyst::{
     ecs::{Entities, Join, Read, ReadStorage, System, WriteStorage},
     renderer::{SpriteRender, Transparent},
 };
-use crate::component::{Animation, Enemy, Motion, Player};
+use crate::component::{Animation, Enemy, Motion, Player, Projectile};
 use rand::distributions::{Distribution, Uniform};
 
 pub struct Movement;
@@ -34,12 +34,97 @@ impl<'s> System<'s> for Movement {
 
                 if player_direction.magnitude2() <= detection_circle.magnitude2() {
                     // let enemy_shift = player_direction - player_direction.normalize();
-                    let enemy_shift = player_direction.normalize();
-                    println!("player nearby");
+                    let enemy_shift = player_direction.normalize_to(100.0);
                     motion.vel = enemy_shift;
                     // transform.translation += enemy_shift.extend(0.0);
+                } else {
+                    motion.vel = Vector2 { x: 0.0, y: 0.0 };
                 }
             }
+        }
+    }
+}
+
+pub struct Attack;
+
+impl<'s> System<'s> for Attack {
+    type SystemData = (
+        ReadStorage<'s, Player>,
+        WriteStorage<'s, Enemy>,
+        WriteStorage<'s, Transform>,
+        Read<'s, crate::load::LoadedTextures>,
+        WriteStorage<'s, Projectile>,
+        WriteStorage<'s, Motion>,
+        WriteStorage<'s, SpriteRender>,
+        WriteStorage<'s, Transparent>,
+        WriteStorage<'s, Animation>,
+        Entities<'s>,
+    );
+
+    fn run(
+        &mut self,
+        (
+            players,
+            mut enemies,
+            mut transforms,
+            textures,
+            mut projectiles,
+            mut motions,
+            mut sprites,
+            mut transparent,
+            mut animations,
+            entities,
+        ): Self::SystemData,
+    ) {
+        let mut bubble_transform = None;
+        let mut bubble_dir = None;
+        for (_player, _p_transform) in (&players, &transforms).join() {
+            for (_enemy, e_transform, e_motion) in (&mut enemies, &transforms, &motions).join()
+            {    
+                if e_motion.vel.magnitude2() > 0.0 {
+                    bubble_transform = Some(e_transform.clone());
+
+                    let range = Uniform::new_inclusive(-5.0 * 32.0, 5.0 * 32.0);                    
+                    let mut rng = rand::thread_rng();
+                    let perp = e_motion.vel;
+                    let perp = perp.normalize_to(range.sample(&mut rng));
+
+                    bubble_dir = Some(e_motion.vel.normalize_to(32.0 * 23.0) + perp);
+                }
+            }
+        }
+
+        if let Some(transform) = bubble_transform {
+            let sprite = SpriteRender {
+                sprite_sheet: textures.textures["bubble.png"].clone(),
+                sprite_number: 0,
+                flip_horizontal: false,
+                flip_vertical: false,
+            };
+
+            let anim = Animation {
+                total_frames: 2,
+                max_count_till_next_frame: 0.5,
+                frame_life_time_count: 0.5,
+                current_frame: 0,
+            };
+
+            let motion = Motion {
+                vel: bubble_dir.unwrap(),
+                acc: bubble_dir.unwrap() * -2.0,
+                min_vel: Some(32.0),
+                max_vel: None,
+            };
+
+            entities
+                .build_entity()
+                .with(transform, &mut transforms)
+                .with(Projectile, &mut projectiles)
+                .with(motion, &mut motions)
+                .with(sprite, &mut sprites)
+                .with(Transparent, &mut transparent)
+                .with(anim, &mut animations)
+                .build();
         }
     }
 }

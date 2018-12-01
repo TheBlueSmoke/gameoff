@@ -1,6 +1,7 @@
 use amethyst::{
     core::cgmath::{InnerSpace, Vector2},
     core::Transform,
+    core::timing::Time,
     ecs::{Entities, Join, Read, ReadStorage, System, WriteStorage},
     renderer::{SpriteRender, Transparent},
 };
@@ -15,35 +16,49 @@ impl<'s> System<'s> for Movement {
         WriteStorage<'s, Enemy>,
         WriteStorage<'s, Motion>,
         WriteStorage<'s, Transform>,
-        Option<Read<'s, crate::map::PassableTiles>>,
+        Option<Read<'s, Time>>,
     );
 
-    fn run(&mut self, (players, mut enemies, mut motions, transforms, passable): Self::SystemData) {
-        if let Some(passable) = passable {
-            let mut player_translation = Vector2 { x: 0.0, y: 0.0 };
-            let mut detection_circle = Vector2 { x: 64.0, y: 64.0 };
+    fn run(&mut self, (players, mut enemies, mut motions, transforms, time): Self::SystemData) {
+        let idle_velocity = 50.0;
+        let tracking_velocity = 100.0;
 
-            // get player position
-            for (_, transform) in (&players, &transforms).join() {
-                player_translation = transform.translation.truncate();
-            }
+        let mut player_translation = Vector2 { x: 0.0, y: 0.0 };
+        let detect_radius = 180.0;
+        let detection_circle = Vector2 { x: detect_radius, y: detect_radius };
 
-            for (enemy, motion, transform) in (&mut enemies, &mut motions, &transforms).join() {
-                let enemy_translation = transform.translation.truncate();
-                let player_direction = player_translation - enemy_translation;
+        let time_accel = 4.0;
+        let mut current_second = 0.0;
+        if let Some(time) = time {
+            current_second = (time.absolute_time_seconds() * time_accel).floor();
+        }
 
-                if player_direction.magnitude2() <= detection_circle.magnitude2() {
-                    // let enemy_shift = player_direction - player_direction.normalize();
-                    let enemy_shift = player_direction.normalize_to(100.0);
-                    motion.vel = enemy_shift;
-                    enemy.has_player_in_sight = true;
-                } else {
-                    let range = Uniform::new_inclusive(-1.0, 1.0);
-                    let mut rng = rand::thread_rng();
-                    let perp = Vector2 { x: range.sample(&mut rng), y: range.sample(&mut rng)};
-                    motion.vel = perp.normalize_to(50.0);
-                    enemy.has_player_in_sight = false;
+        // get player position
+        for (_, transform) in (&players, &transforms).join() {
+            player_translation = transform.translation.truncate();
+        }
+
+        for (enemy, motion, transform) in (&mut enemies, &mut motions, &transforms).join() {
+            let enemy_translation = transform.translation.truncate();
+            let player_direction = player_translation - enemy_translation;
+
+            if player_direction.magnitude2() <= detection_circle.magnitude2() {
+                // let enemy_shift = player_direction - player_direction.normalize();
+                let enemy_shift = player_direction.normalize_to(tracking_velocity);
+                motion.vel = enemy_shift;
+                enemy.has_player_in_sight = true;
+            } else {
+                if current_second % 2.0 == 0.0 {
+                    if motion.vel.magnitude2() == 0.0 {
+                        let range = Uniform::new_inclusive(-1.0, 1.0);
+                        let mut rng = rand::thread_rng();
+                        let random_velocity = Vector2 { x: range.sample(&mut rng), y: range.sample(&mut rng)};
+                        motion.vel = random_velocity.normalize_to(idle_velocity);
+                    }
+                } else if current_second % 3.0 == 0.0 {
+                    motion.vel = Vector2 {x: 0.0, y: 0.0 };
                 }
+                enemy.has_player_in_sight = false;
             }
         }
     }

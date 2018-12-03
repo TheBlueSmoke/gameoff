@@ -48,7 +48,6 @@ impl<'s> System<'s> for Movement {
             let player_direction = player_translation - enemy_translation;
 
             if player_direction.magnitude2() <= detection_circle.magnitude2() {
-                // let enemy_shift = player_direction - player_direction.normalize();
                 let enemy_shift = player_direction.normalize_to(tracking_velocity);
                 motion.vel = enemy_shift;
                 enemy.has_player_in_sight = true;
@@ -58,7 +57,6 @@ impl<'s> System<'s> for Movement {
                         self.random_movement_time = diff;
                     } else {
                         motion.vel = Vector2 { x: 0.0, y: 0.0 };
-                        // entities.delete(entity);
                         self.random_idle_time = Duration::new(2, 0);
                     }
                 }
@@ -74,7 +72,6 @@ impl<'s> System<'s> for Movement {
                             y: range.sample(&mut rng).cos(),
                         };
                         motion.vel = random_velocity.normalize_to(idle_velocity);
-                        // entities.delete(entity);
                         self.random_movement_time = Duration::new(2, 0);
                     }
                 }

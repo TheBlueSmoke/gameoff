@@ -10,6 +10,7 @@ use component::{Animation, Player};
 use crate::load;
 use crate::state::Game;
 use crate::system::*;
+use std::time::Duration;
 
 pub struct Menu;
 
@@ -39,8 +40,14 @@ impl SimpleState<'static, 'static> for Menu {
         let world = &mut data.world;
         let mut dispatcher: Dispatcher = DispatcherBuilder::new()
             .with(player::Movement, "player-movement", &[])
-            .with(enemy::Movement, "enemy-movement", &[])
-            .with(camera::Movement, "camera-movement", &[])
+            .with(
+                enemy::Movement {
+                    random_movement_time: Duration::new(0, 0),
+                    random_idle_time: Duration::new(1, 0),
+                },
+                "enemy-movement",
+                &[],
+            ).with(camera::Movement, "camera-movement", &[])
             .with(enemy::Spawner, "enemy-spawner", &[])
             .with(ally::Movement, "ally-movement", &[])
             .with(ally::Grouper, "ally-grouper", &[])

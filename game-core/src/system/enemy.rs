@@ -1,14 +1,19 @@
 use amethyst::{
     core::cgmath::{InnerSpace, Vector2},
-    core::Transform,
     core::timing::Time,
+    core::Transform,
     ecs::{Entities, Join, Read, ReadStorage, System, WriteStorage},
     renderer::{SpriteRender, Transparent},
 };
 use crate::component::{Animation, Enemy, Motion, Player, Projectile};
 use rand::distributions::{Distribution, Uniform};
+use std::f32::consts::PI;
+use std::time::Duration;
 
-pub struct Movement;
+pub struct Movement {
+    pub random_movement_time: Duration,
+    pub random_idle_time: Duration,
+}
 
 impl<'s> System<'s> for Movement {
     type SystemData = (
@@ -16,7 +21,7 @@ impl<'s> System<'s> for Movement {
         WriteStorage<'s, Enemy>,
         WriteStorage<'s, Motion>,
         WriteStorage<'s, Transform>,
-        Option<Read<'s, Time>>,
+        Read<'s, Time>,
     );
 
     fn run(&mut self, (players, mut enemies, mut motions, transforms, time): Self::SystemData) {
@@ -25,13 +30,13 @@ impl<'s> System<'s> for Movement {
 
         let mut player_translation = Vector2 { x: 0.0, y: 0.0 };
         let detect_radius = 180.0;
-        let detection_circle = Vector2 { x: detect_radius, y: detect_radius };
+        let detection_circle = Vector2 {
+            x: detect_radius,
+            y: detect_radius,
+        };
 
         let time_accel = 4.0;
-        let mut current_second = 0.0;
-        if let Some(time) = time {
-            current_second = (time.absolute_time_seconds() * time_accel).floor();
-        }
+        // let current_second = (time.absolute_time_seconds() * time_accel).floor();
 
         // get player position
         for (_, transform) in (&players, &transforms).join() {
@@ -48,16 +53,47 @@ impl<'s> System<'s> for Movement {
                 motion.vel = enemy_shift;
                 enemy.has_player_in_sight = true;
             } else {
+                if motion.vel.magnitude2() > 0.0 {
+                    if let Some(diff) = self.random_movement_time.checked_sub(time.delta_time()) {
+                        self.random_movement_time = diff;
+                    } else {
+                        motion.vel = Vector2 { x: 0.0, y: 0.0 };
+                        // entities.delete(entity);
+                        self.random_idle_time = Duration::new(2, 0);
+                    }
+                }
+
+                if motion.vel.magnitude2() == 0.0 {
+                    if let Some(diff) = self.random_idle_time.checked_sub(time.delta_time()) {
+                        self.random_idle_time = diff;
+                    } else {
+                        let range = Uniform::new_inclusive(0.0, 2.0 * PI);
+                        let mut rng = rand::thread_rng();
+                        let random_velocity = Vector2 {
+                            x: range.sample(&mut rng).sin(),
+                            y: range.sample(&mut rng).cos(),
+                        };
+                        motion.vel = random_velocity.normalize_to(idle_velocity);
+                        // entities.delete(entity);
+                        self.random_movement_time = Duration::new(2, 0);
+                    }
+                }
+
+                /*
                 if current_second % 2.0 == 0.0 {
                     if motion.vel.magnitude2() == 0.0 {
-                        let range = Uniform::new_inclusive(-1.0, 1.0);
+                        let range = Uniform::new_inclusive(0.0, 2.0 * PI);
                         let mut rng = rand::thread_rng();
-                        let random_velocity = Vector2 { x: range.sample(&mut rng), y: range.sample(&mut rng)};
+                        let random_velocity = Vector2 {
+                            x: range.sample(&mut rng).sin(),
+                            y: range.sample(&mut rng).cos(),
+                        };
                         motion.vel = random_velocity.normalize_to(idle_velocity);
                     }
                 } else if current_second % 3.0 == 0.0 {
-                    motion.vel = Vector2 {x: 0.0, y: 0.0 };
+                    motion.vel = Vector2 { x: 0.0, y: 0.0 };
                 }
+                */
                 enemy.has_player_in_sight = false;
             }
         }

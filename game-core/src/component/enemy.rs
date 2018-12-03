@@ -7,7 +7,7 @@ pub struct Enemy {
 
 impl Default for Enemy {
     fn default() -> Self {
-        Self { 
+        Self {
             hp: 120,
             has_player_in_sight: false,
         }
